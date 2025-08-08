@@ -6,7 +6,7 @@ app = FastAPI()
 TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=TOKEN)
 
-@app.post(f"/{TOKEN}")
+@app.post(f"/api/{TOKEN}")
 async def telegram_webhook(request: Request):
     data = await request.json()
     update = Update.de_json(data, bot)
