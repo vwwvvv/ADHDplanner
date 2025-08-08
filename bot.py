@@ -2,6 +2,7 @@ import os
 import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
+from datetime import datetime, timedelta
 
 TASKS = []
 
@@ -32,7 +33,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
 
-    pattern = r"(\\d+(?:[.,]\\d+)?)\\s*(ч|час|часа|часов|мин|м|минут|минуты|мин\\.)"
+    pattern = r"(\d+(?:[.,]\d+)?)\s*(ч|час|часа|часов|мин|м|минут|минуты|мин\.)"
     match = re.search(pattern, text)
     if match:
         duration_str, unit = match.groups()
