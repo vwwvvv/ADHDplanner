@@ -1,57 +1,66 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from telegram import Bot, Update
-from telegram.error import TelegramError
 import os
-import logging
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+import json
 
 app = FastAPI()
 
 # Получаем токен из переменных окружения
 TOKEN = os.getenv("BOT_TOKEN")
 
-if not TOKEN:
-    logger.error("BOT_TOKEN не найден в переменных окружения")
-    raise ValueError("BOT_TOKEN не установлен")
-
-bot = Bot(token=TOKEN)
+if TOKEN:
+    bot = Bot(token=TOKEN)
+else:
+    bot = None
+    print("WARNING: BOT_TOKEN not found")
 
 @app.get("/")
 async def root():
     """Корневой эндпоинт для проверки работы"""
-    return {"message": "ADHD Planner Bot is running!", "status": "ok"}
+    return {
+        "message": "ADHD Planner Bot is running!", 
+        "status": "ok",
+        "token_available": bool(TOKEN),
+        "bot_ready": bool(bot)
+    }
 
 @app.post("/")
-async def webhook(request: Request):
+async def webhook_handler(request: Request):
     """Обработчик webhook'ов от Telegram"""
     try:
+        # Проверяем что бот инициализирован
+        if not bot:
+            return {"error": "Bot not initialized - check BOT_TOKEN", "ok": False}
+        
         # Получаем данные от Telegram
-        data = await request.json()
-        logger.info(f"Получен webhook: {data}")
+        body = await request.body()
+        data = json.loads(body)
+        
+        print(f"Received webhook data: {data}")
         
         # Создаем объект Update
         update = Update.de_json(data, bot)
         
         # Обрабатываем сообщение
-        if update.message:
+        if update and update.message and update.message.text:
             await handle_message(update)
         
         return {"ok": True}
     
     except Exception as e:
-        logger.error(f"Ошибка обработки webhook: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = f"Webhook error: {str(e)}"
+        print(error_msg)
+        return {"error": error_msg, "ok": False}
 
 async def handle_message(update: Update):
     """Обработка входящих сообщений"""
-    message = update.message
-    chat_id = message.chat.id
-    text = message.text
-    
     try:
+        message = update.message
+        chat_id = message.chat.id
+        text = message.text
+        
+        print(f"Processing message: {text} from chat: {chat_id}")
+        
         if text == "/start":
             welcome_text = (
                 "🧠 Привет! Я ADHD Planner Bot!\n\n"
@@ -59,62 +68,37 @@ async def handle_message(update: Update):
                 "Доступные команды:\n"
                 "/start - начать работу\n"
                 "/help - помощь\n"
-                "/plan - создать план\n"
-                "/tasks - мои задачи"
+                "/plan - создать план"
             )
             await bot.send_message(chat_id=chat_id, text=welcome_text)
             
         elif text == "/help":
             help_text = (
                 "📝 Помощь по ADHD Planner Bot:\n\n"
-                "🎯 /plan - создать новый план или задачу\n"
-                "📋 /tasks - посмотреть текущие задачи\n"
-                "⏰ Я помогу тебе структурировать день и не забыть важное!\n\n"
-                "Просто отправь мне описание задачи, и я помогу её организовать."
+                "🎯 /plan - создать новый план\n"
+                "⏰ Я помогу структурировать твой день!\n\n"
+                "Просто отправь мне описание задачи."
             )
             await bot.send_message(chat_id=chat_id, text=help_text)
             
         elif text == "/plan":
             plan_text = (
                 "📅 Создание плана:\n\n"
-                "Отправьте мне описание задачи в таком формате:\n"
-                "• Что нужно сделать\n"
-                "• Когда (время/дата)\n"
-                "• Приоритет (высокий/средний/низкий)\n\n"
-                "Пример: 'Купить продукты завтра в 18:00 высокий приоритет'"
+                "Отправь мне описание задачи, и я помогу её организовать!\n\n"
+                "Например: 'Купить продукты завтра в 18:00'"
             )
             await bot.send_message(chat_id=chat_id, text=plan_text)
             
-        elif text == "/tasks":
-            tasks_text = (
-                "📋 Ваши задачи:\n\n"
-                "Пока у вас нет сохраненных задач.\n"
-                "Используйте /plan чтобы создать первую задачу!"
-            )
-            await bot.send_message(chat_id=chat_id, text=tasks_text)
-            
         else:
-            # Обработка обычных сообщений как потенциальных задач
-            if len(text) > 5:  # Если сообщение содержательное
-                response_text = (
-                    f"📝 Получил задачу: '{text}'\n\n"
-                    "Хочешь превратить это в план?\n"
-                    "Используй /plan для структурированного планирования!"
-                )
-            else:
-                response_text = (
-                    "🤔 Не понял команду.\n"
-                    "Используй /help для списка доступных команд."
-                )
-            
+            # Обработка обычных сообщений
+            response_text = (
+                f"📝 Получил: '{text}'\n\n"
+                "Используй /help для списка команд!"
+            )
             await bot.send_message(chat_id=chat_id, text=response_text)
             
-    except TelegramError as e:
-        logger.error(f"Ошибка Telegram API: {e}")
     except Exception as e:
-        logger.error(f"Общая ошибка при обработке сообщения: {e}")
+        print(f"Error handling message: {e}")
 
-# Для локального запуска
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Для Vercel нужен именно этот handler
+handler = app
