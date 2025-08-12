@@ -4,4 +4,4 @@ app = FastAPI()
 
 @app.get("/")
 async def root():
-    return {"message": "Hello from Vercel!"}
+    return {"message": "Server is running"}
